@@ -42,6 +42,7 @@ CMAKE_DEPENDENT_OPTION(USE_CG "CoreGraphics needs to be enabled and run on macOS
 CMAKE_DEPENDENT_OPTION(USE_SKIA "Skia" TRUE "APPLE;SKIA" FALSE)
 
 CMAKE_DEPENDENT_OPTION(USE_TEXT_EXAMPLE "Text port for testing" TRUE "NOT LIB_ONLY;TEXT" FALSE)
+CMAKE_DEPENDENT_OPTION(USE_C_EXAMPLE "C Wrapper port for demonstration" TRUE "NOT LIB_ONLY;TEXT" FALSE)
 CMAKE_DEPENDENT_OPTION(USE_CG_EXAMPLE "CoreGraphics needs to be enabled and run on macOS/iOS" TRUE "NOT LIB_ONLY;USE_CG" FALSE)
 CMAKE_DEPENDENT_OPTION(USE_SKIA_EXAMPLE "Skia" TRUE "NOT LIB_ONLY;SKIA" FALSE)
 
@@ -76,6 +77,16 @@ if(STYLE)
     add_definitions(-DSTYLE_SUPPORT)
 endif()
 
+if(USE_CG)
+    add_definitions(-DUSE_CG)
+endif()
+if (USE_SKIA)
+    add_definitions(-DUSE_SKIA)
+endif()
+if(USE_TEXT)
+    add_definitions(-DUSE_TEXT)
+endif()
+
 ##############################
 # Demo/Testing applications
 ##############################
@@ -88,6 +99,9 @@ endif()
 if (USE_SKIA_EXAMPLE)
 add_subdirectory(example/testSkia)
 endif()
+if (USE_C_EXAMPLE)
+add_subdirectory(example/testC)
+endif()
 
 ##############################
 # CPP and Headers for Library
@@ -95,6 +109,7 @@ endif()
 file(GLOB gl_public
     include/SVGDocument.h
     include/SVGRenderer.h
+    include/SVGNativeCWrapper.h
 )
 file(GLOB gl_source
     src/SVGDocumentImpl.h
@@ -103,6 +118,7 @@ file(GLOB gl_source
     src/SVGParserArcToCurve.cpp
     src/SVGStringParser.h
     src/SVGStringParser.cpp
+    src/SVGNativeCWrapper.cpp
 )
 
 set(gl_deprecated_styling)
