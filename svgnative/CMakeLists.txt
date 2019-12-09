@@ -39,6 +39,7 @@ option(LIB_ONLY "Create a project for library only" OFF)
 option(SHARED "Make library dynamic")
 
 option(TEXT "Enable Text port for testing" ON)
+option(JSON "Enable Json port for testing")
 option(CG "Enable CoreGraphics/Quartz2D port")
 option(SKIA "Enable Skia port")
 option(GDIPLUS "Enable GDI+ port")
@@ -48,12 +49,14 @@ option(CAIRO "Enable Cairo port")
 CMAKE_DEPENDENT_OPTION(USE_SHARED "Dynamic library" TRUE "SHARED" FALSE)
 
 CMAKE_DEPENDENT_OPTION(USE_TEXT "Text port for testing" TRUE "TEXT" FALSE)
+CMAKE_DEPENDENT_OPTION(USE_JSON "Json port for serializing SVG to JSON" TRUE "JSON" FALSE)
 CMAKE_DEPENDENT_OPTION(USE_CG "CoreGraphics needs to be enabled and run on macOS/iOS" TRUE "APPLE;CG" FALSE)
 CMAKE_DEPENDENT_OPTION(USE_SKIA "Skia" TRUE "APPLE;SKIA" FALSE)
 CMAKE_DEPENDENT_OPTION(USE_GDIPLUS "GDI+ port" TRUE "MSVC;GDIPLUS" FALSE)
 CMAKE_DEPENDENT_OPTION(USE_CAIRO "Cairo" TRUE "CAIRO" FALSE)
 
 CMAKE_DEPENDENT_OPTION(USE_TEXT_EXAMPLE "Text port for testing" TRUE "NOT LIB_ONLY;TEXT" FALSE)
+CMAKE_DEPENDENT_OPTION(USE_JSON_EXAMPLE "Json port for serializing SVG to JSON" TRUE "NOT LIB_ONLY;JSON" FALSE)
 CMAKE_DEPENDENT_OPTION(USE_CG_EXAMPLE "CoreGraphics needs to be enabled and run on macOS/iOS" TRUE "NOT LIB_ONLY;USE_CG" FALSE)
 CMAKE_DEPENDENT_OPTION(USE_SKIA_EXAMPLE "Skia" TRUE "NOT LIB_ONLY;SKIA" FALSE)
 CMAKE_DEPENDENT_OPTION(USE_GDIPLUS_EXAMPLE "GDI+ example app" TRUE "NOT LIB_ONLY;GDIPLUS" FALSE)
@@ -69,6 +72,12 @@ if(CAIRO)
         set(CAIRO_INCLUDE_DIRS "/usr/include/cairo")
         set(CAIRO_LIBRARIES "-lcairo")
     endif()
+endif()
+
+if(JSON)
+    set(JSON_BuildTests OFF CACHE INTERNAL "")
+    set(JSON_Install OFF CACHE INTERNAL "")
+    add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../third_party/json" json)
 endif()
 
 ################################
@@ -121,6 +130,9 @@ endif()
 if(USE_TEXT_EXAMPLE)
 add_subdirectory(example/testText)
 endif()
+if(USE_JSON_EXAMPLE)
+add_subdirectory(example/testJson)
+endif()
 if(USE_CG_EXAMPLE)
 add_subdirectory(example/testCocoaCG)
 endif()
@@ -165,6 +177,14 @@ if(USE_TEXT)
 file(GLOB text_port
     ports/string/StringSVGRenderer.h
     ports/string/StringSVGRenderer.cpp
+)
+endif()
+
+set(json_port)
+if(USE_JSON)
+file(GLOB json_port
+    ports/json/JsonSVGRenderer.h
+    ports/json/JsonSVGRenderer.cpp
 )
 endif()
 
@@ -218,6 +238,7 @@ set(svgNative_src
     ${gl_deprecated_styling}
     ${gl_source}
     ${text_port}
+    ${json_port}
     ${cg_port}
     ${skia_port}
     ${gdiplus_port}
@@ -241,6 +262,9 @@ target_include_directories(SVGNativeViewerLib PUBLIC "${CMAKE_CURRENT_SOURCE_DIR
 endif()
 if (USE_TEXT)
 target_include_directories(SVGNativeViewerLib PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ports/string")
+endif()
+if (USE_JSON)
+target_include_directories(SVGNativeViewerLib PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ports/json")
 endif()
 if (USE_CG)
 target_include_directories(SVGNativeViewerLib PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/ports/cg")
@@ -269,6 +293,9 @@ endif()
 # Library search paths
 ##############################
 
+if(USE_JSON)
+target_link_libraries(SVGNativeViewerLib PRIVATE nlohmann_json::nlohmann_json)
+endif()
 if(USE_CG)
 target_link_libraries(SVGNativeViewerLib "-framework CoreGraphics")
 endif()
