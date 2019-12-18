@@ -172,7 +172,7 @@ void JsonSVGRenderer::Save(const GraphicStyle& graphicStyle)
 
     if (graphicStyle.opacity != 1.0 || graphicStyle.transform || graphicStyle.clippingPath)
     {
-        (*g)["elements"].push_back(json::object());
+        (*g)["elements"].push_back(json::object({{"elements", json::array()},}));
         mCurrentGroup = &((*g)["elements"].back());
         SaveGraphic(graphicStyle, *mCurrentGroup);
     }
