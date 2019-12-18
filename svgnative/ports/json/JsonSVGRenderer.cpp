@@ -18,6 +18,8 @@ governing permissions and limitations under the License.
 #define M_PI 3.14159265358979323846
 #endif
 
+static json DEFAULT_FILL_COLOR = json({0.0, 0.0, 0.0, 1.0});  // black
+
 namespace SVGNative
 {
 JsonSVGPath::JsonSVGPath() { }
@@ -54,24 +56,42 @@ void JsonSVGPath::Ellipse(float cx, float cy, float rx, float ry)
 }
 
 void JsonSVGPath::MoveTo(float x, float y) {
-    j["d"].push_back({{"M", {x, y}},});
+    json& d = j["d"];
+    d.push_back("M");
+    d.push_back(x);
+    d.push_back(y);
 }
 
 void JsonSVGPath::LineTo(float x, float y) {
-    j["d"].push_back({{"L", {x, y}},});
+    json& d = j["d"];
+    d.push_back("L");
+    d.push_back(x);
+    d.push_back(y);
 }
 
 void JsonSVGPath::CurveTo(float x1, float y1, float x2, float y2, float x3, float y3)
 {
-    j["d"].push_back({{"C", {x1, y1, x2, y2, x3, y3}},});
+    json& d = j["d"];
+    d.push_back("C");
+    d.push_back(x1);
+    d.push_back(y1);
+    d.push_back(x2);
+    d.push_back(y2);
+    d.push_back(x3);
+    d.push_back(y3);
 }
 
 void JsonSVGPath::CurveToV(float x2, float y2, float x3, float y3) {
-    j["d"].push_back({{"T", {x2, y2, x3, y3}},});
+    json& d = j["d"];
+    d.push_back("T");
+    d.push_back(x2);
+    d.push_back(y2);
+    d.push_back(x3);
+    d.push_back(y3);
 }
 
 void JsonSVGPath::ClosePath() {
-    j["d"].push_back({{"Z", nullptr},});
+    j["d"].push_back("Z");
 }
 
 float deg2rad(float angle);
@@ -148,18 +168,24 @@ JsonSVGRenderer::JsonSVGRenderer()
 void JsonSVGRenderer::Save(const GraphicStyle& graphicStyle)
 {
     json* g = mCurrentGroup;
-    (*g)["elements"].push_back({});
-    mCurrentGroup = &((*g)["elements"].back());
-    mGroupStack.push(g);
 
-    SaveGraphic(graphicStyle, *mCurrentGroup);
+    if (graphicStyle.opacity != 1.0 || graphicStyle.transform || graphicStyle.clippingPath)
+    {
+        (*g)["elements"].push_back(json::object());
+        mCurrentGroup = &((*g)["elements"].back());
+        SaveGraphic(graphicStyle, *mCurrentGroup);
+    }
+
+    mGroupStack.push(g);
 }
 
 void JsonSVGRenderer::Restore()
 {
     if (!mGroupStack.empty())
+    {
         mCurrentGroup = mGroupStack.top();
         mGroupStack.pop();
+    }
 }
 
 void JsonSVGRenderer::DrawPath(
@@ -169,7 +195,8 @@ void JsonSVGRenderer::DrawPath(
     SaveGraphic(graphicStyle, p);
     SaveFill(fillStyle, p);
     SaveStroke(strokeStyle, p);
-    (*mCurrentGroup)["elements"].push_back(p);
+    if (!p.is_null())
+        (*mCurrentGroup)["elements"].push_back(p);
 }
 
 void JsonSVGRenderer::DrawImage(const ImageData& image, const GraphicStyle& graphicStyle, const Rect& clipArea, const Rect& fillArea)
@@ -184,18 +211,19 @@ void JsonSVGRenderer::DrawImage(const ImageData& image, const GraphicStyle& grap
     (*mCurrentGroup)["elements"].push_back(i);
 }
 
-json JsonSVGRenderer::Json() const { return mRoot; }
+json JsonSVGRenderer::Json() const {
+    return mRoot["elements"].empty() ? json({}) : mRoot["elements"].at(0);
+}
 
 void JsonSVGRenderer::SaveFill(const FillStyle& fillStyle, json& o)
 {
     if (!fillStyle.hasFill)
         return;
-    json fill;
-    fill["winding"] = (fillStyle.fillRule == WindingRule::kNonZero ? "nonzero" : "evenodd");
+    if (fillStyle.fillRule == WindingRule::kEvenOdd)
+        o["winding"] = "evenodd";
     if (fillStyle.fillOpacity != 1.0)
-        fill["opacity"] = fillStyle.fillOpacity;
-    SavePaint(fillStyle.paint, fill);
-    o["fill"] = fill;
+        o["opacity"] = fillStyle.fillOpacity;
+    SavePaint(fillStyle.paint, o);
 }
 
 void JsonSVGRenderer::SaveStroke(const StrokeStyle& strokeStyle, json& o)
@@ -237,7 +265,8 @@ void JsonSVGRenderer::SaveGraphic(const GraphicStyle& graphicStyle, json& o)
     if (graphicStyle.clippingPath && graphicStyle.clippingPath->path)
     {
         json clipping;
-        clipping["winding"] = (graphicStyle.clippingPath->clipRule == WindingRule::kNonZero ? "nonzero" : "evenodd");
+        if (graphicStyle.clippingPath->clipRule == WindingRule::kEvenOdd)
+            clipping["winding"] = "evenodd";
         if (graphicStyle.clippingPath->transform)
             clipping["transform"] = static_cast<JsonSVGTransform*>(graphicStyle.clippingPath->transform.get())->Json();
         clipping["path"] = static_cast<const JsonSVGPath*>(graphicStyle.clippingPath->path.get())->Json();
@@ -251,7 +280,7 @@ void JsonSVGRenderer::SavePaint(const Paint& paint, json& o)
     {
         auto gradient = boost::get<Gradient>(paint);
         json p;
-        p["type"] = (gradient.type == GradientType::kLinearGradient ? "linearGradient:" : "radialGradient:");
+        p["type"] = (gradient.type == GradientType::kLinearGradient ? "linear" : "radial");
         if (gradient.transform)
             p["transform"] = static_cast<JsonSVGTransform*>(gradient.transform.get())->Json();
         if (gradient.type == GradientType::kLinearGradient)
@@ -290,17 +319,18 @@ void JsonSVGRenderer::SavePaint(const Paint& paint, json& o)
         for (const auto& colorStop : gradient.colorStops)
         {
             const auto& stopColor = colorStop.second;
-            stops.push_back({{"offset", colorStop.first}, {"rgba", stopColor},});
+            stops.push_back({{"offset", colorStop.first}, {"color", stopColor},});
         }
         if (!stops.empty())
             p["stops"] = stops;
 
-        o["paint"] = p;
+        o["paint"]["gradient"] = p;
     }
     else if (paint.type() == typeid(Color))
     {
         auto color = boost::get<Color>(paint);
-        o["paint"]["rgba"] = color;
+        if (color != DEFAULT_FILL_COLOR)
+            o["paint"]["color"] = color;
     }
 }
 
