@@ -132,7 +132,7 @@ private:
     void SaveFill(const FillStyle& fillStyle, json& o);
     void SaveStroke(const StrokeStyle& strokeStyle, json& o);
     void SaveGraphic(const GraphicStyle& graphicStyle, json& o);
-    void SavePaint(const Paint& paint, json& o);
+    void SavePaint(const Paint& paint, json& o, bool skip_black);
 
     json mRoot;
     std::stack<json*> mGroupStack;

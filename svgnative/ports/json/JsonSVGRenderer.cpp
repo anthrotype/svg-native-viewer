@@ -18,10 +18,11 @@ governing permissions and limitations under the License.
 #define M_PI 3.14159265358979323846
 #endif
 
-static json DEFAULT_FILL_COLOR = json({0.0, 0.0, 0.0, 1.0});  // black
-
 namespace SVGNative
 {
+static json DEFAULT_FILL_COLOR = json({0.0, 0.0, 0.0, 1.0});  // black
+static StrokeStyle DEFAULT_STROKE_STYLE;
+
 JsonSVGPath::JsonSVGPath() { }
 
 void JsonSVGPath::Rect(float x, float y, float width, float height)
@@ -219,12 +220,15 @@ void JsonSVGRenderer::SaveFill(const FillStyle& fillStyle, json& o)
 {
     json fill;
     if (!fillStyle.hasFill)
+    {
+        o["fill"] = nullptr;
         return;
+    }
     if (fillStyle.fillRule == WindingRule::kEvenOdd)
         fill["winding"] = "evenodd";
     if (fillStyle.fillOpacity != 1.0)
         fill["opacity"] = fillStyle.fillOpacity;
-    SavePaint(fillStyle.paint, fill);
+    SavePaint(fillStyle.paint, fill, true);
     if (!fill.empty())
         o["fill"] = fill;
 }
@@ -235,27 +239,35 @@ void JsonSVGRenderer::SaveStroke(const StrokeStyle& strokeStyle, json& o)
         return;
 
     json stroke;
-    stroke["width"] = strokeStyle.lineWidth;
+    if (strokeStyle.lineWidth != 1.0)
+        stroke["width"] = strokeStyle.lineWidth;
     if (strokeStyle.strokeOpacity != 1.0)
         stroke["opacity"] = strokeStyle.strokeOpacity;
-    if (strokeStyle.lineCap == LineCap::kButt)
-        stroke["cap"] = "butt";
-    else if (strokeStyle.lineCap == LineCap::kRound)
-        stroke["cap"] = "round";
-    else if (strokeStyle.lineCap == LineCap::kSquare)
-        stroke["cap"] = "square";
-    if (strokeStyle.lineJoin == LineJoin::kMiter)
-        stroke["join"] = "miter";
-    else if (strokeStyle.lineJoin == LineJoin::kRound)
-        stroke["join"] = "round";
-    else if (strokeStyle.lineJoin == LineJoin::kBevel)
-        stroke["join"] = "bevel";
-    stroke["miter"] = strokeStyle.miterLimit;
+    if (strokeStyle.lineCap != DEFAULT_STROKE_STYLE.lineCap)
+    {
+        if (strokeStyle.lineCap == LineCap::kButt)
+            stroke["cap"] = "butt";
+        else if (strokeStyle.lineCap == LineCap::kRound)
+            stroke["cap"] = "round";
+        else if (strokeStyle.lineCap == LineCap::kSquare)
+            stroke["cap"] = "square";
+    }
+    if (strokeStyle.lineJoin != DEFAULT_STROKE_STYLE.lineJoin)
+    {
+        if (strokeStyle.lineJoin == LineJoin::kMiter)
+            stroke["join"] = "miter";
+        else if (strokeStyle.lineJoin == LineJoin::kRound)
+            stroke["join"] = "round";
+        else if (strokeStyle.lineJoin == LineJoin::kBevel)
+            stroke["join"] = "bevel";
+    }
+    if (strokeStyle.miterLimit != DEFAULT_STROKE_STYLE.miterLimit)
+        stroke["miter"] = strokeStyle.miterLimit;
     if (!strokeStyle.dashArray.empty())
         stroke["dash"] = strokeStyle.dashArray;
-    stroke["dash_offset"] = strokeStyle.dashOffset;
-    SavePaint(strokeStyle.paint, stroke);
-
+    if (strokeStyle.dashOffset != DEFAULT_STROKE_STYLE.dashOffset)
+        stroke["dash_offset"] = strokeStyle.dashOffset;
+    SavePaint(strokeStyle.paint, stroke, false);
     o["stroke"] = stroke;
 }
 
@@ -277,7 +289,7 @@ void JsonSVGRenderer::SaveGraphic(const GraphicStyle& graphicStyle, json& o)
     }
 }
 
-void JsonSVGRenderer::SavePaint(const Paint& paint, json& o)
+void JsonSVGRenderer::SavePaint(const Paint& paint, json& o, bool skip_black)
 {
     if (paint.type() == typeid(Gradient))
     {
@@ -334,7 +346,7 @@ void JsonSVGRenderer::SavePaint(const Paint& paint, json& o)
     else if (paint.type() == typeid(Color))
     {
         auto color = boost::get<Color>(paint);
-        if (color != DEFAULT_FILL_COLOR)
+        if (color != DEFAULT_FILL_COLOR or !skip_black)
             o["paint"]["color"] = color;
     }
 }
