@@ -318,6 +318,8 @@ void JsonSVGRenderer::SavePaint(const Paint& paint, json& o, bool skip_black)
                 p["fx"] = gradient.fx;
             if (std::isfinite(gradient.fy))
                 p["fy"] = gradient.fy;
+            if (std::isfinite(gradient.r))
+                p["r"] = gradient.r;
         }
         std::string method;
         if (gradient.method == SpreadMethod::kPad)
